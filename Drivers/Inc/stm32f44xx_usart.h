@@ -97,7 +97,8 @@ typedef struct {
 	uint32_t RX_len;
 	uint8_t* TxBuffer;
 	uint8_t* RxBuffer;
-	USART_STATUS_t USART_STATUS;
+	USART_STATUS_t USART_RX_STATUS;
+	USART_STATUS_t USART_TX_STATUS;
 
 }USART_Handle_t;
 
