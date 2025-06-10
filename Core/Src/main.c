@@ -1,211 +1,206 @@
 /*
  * main.c
  *
- *  Created on: Apr 16, 2025
+ *  Created on: Jun 2, 2025
  *      Author: katog
  */
-#include <stdint.h>
+
 #include <string.h>
-#include <stdio.h>
-#include "stm32f44xx_usart.h"
 #include "stm32f44xx_gpio.h"
+#include "stm32f44xx_timer.h"
+#include "stm32f44xx_i2c.h"
+#include "DHT22.h"
+#include "SH1106.h"
+#include "DS1307.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "queue.h"
 
-/******************** MACRO DEFINITIONS START HERE *****************/
+/* GLOBAL VARIABLES */
+static DHT22_Handle_t 	DIGICLOCK_DHT22_HANDLE;
+static DHT22_FUNC_t 	DIGICLOCK_DHT22_WRAPPER;
+static GPIO_Handle_t 	DIGICLOCK_DHT22_PIN;
 
-/*#define SEMIHOSTING_ENABLE*/
-#define QUEUE_MAX_LEN			100U
+static GPIO_Handle_t	DIGICLOCK_I2C1_BUS_PINS;
+static I2C_Handle_t		DIGICLOCK_I2C1_BUS_HANDLE;
 
-typedef enum {
-	USART_RX_READY_FOR_NEW_STRING,
-	USART_RXING_CURR_STRING,
-	USART_RX_TO_PROCESS
-}USART_RX_STR_STATE_ts;
-/******************** MACRO DEFINITIONS END HERE *****************/
+SH1106_Handle_t 		DIGICLOCK_SH1106_HANDLE;
+SH1106_Comms_t			DIGICLOCK_SH1106_WRAPPER;
 
+DS1307_Handle_t			DIGICLOCK_DS1307_HANDLE;
 
-/*************  GLOBAL VARIABLES START HERE **********/
-
-static TaskHandle_t task1_handle = NULL;
-
-static TaskHandle_t task2_handle = NULL;
-
-static USART_Handle_t USART2_HANDLE;
-
-static USART_RX_STR_STATE_ts USART_rx_in_progress = USART_RX_READY_FOR_NEW_STRING;
-
-static uint8_t USART_BUFFER;
-
-static QueueHandle_t USART_MSG_QUEUE;
-
-static uint8_t MSG_LEN = 0;
-
-static BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-/*************  GLOBAL VARIABLES END HERE **********/
-
-/************* PERIPHERAL INITS START HERE ********************/
-
-#ifdef SEMIHOSTING_ENABLE
-
-extern void initialise_monitor_handles(void);
-
-#endif
-void USART_PINS_INIT()
+/* wrapper functions for DHT22 */
+void DIGICLOCK_DHT22_WRITE(uint8_t value)
 {
-	GPIO_Handle_t USART2_PIN;
-	USART2_PIN.GPIO_MODE = GPIO_PIN_MODE_AFIO;
-	USART2_PIN.GPIO_AFIO_MODE = AFIO_MODE_7;
-	USART2_PIN.GPIO_OUTPUT_TYPE = GPIO_OUT_PP;
-	USART2_PIN.GPIO_PUPPD = GPIO_NO_PUPD;
-	USART2_PIN.pGPIOx = GPIOA;
-	USART2_PIN.GPIO_OUTPUT_SPD = GPIO_OUT_FST_SPD;
-
-	// USART TX
-	USART2_PIN.GPIO_PIN_NUMBER = GPIO_PIN_NUMBER_2;
-	GPIO_INIT(&USART2_PIN);
-
-	// USART RX
-	USART2_PIN.GPIO_PIN_NUMBER = GPIO_PIN_NUMBER_3;
-	GPIO_INIT(&USART2_PIN);
+	GPIO_WRITE_OUTPUT_PIN(GPIOC, GPIO_PIN_NUMBER_9, value);
 }
 
-void USART2_INIT(USART_Handle_t* USART2_HANDLE)
+// wrapper function for reading from dht22 pin
+uint8_t DIGICLOCK_DHT22_READ(void)
 {
-
-	USART2_HANDLE->STOPBIT_LEN = USART_STOPBIT_LEN_1;
-	USART2_HANDLE->USART_MODE = USART_MODE_RXTX;
-	USART2_HANDLE->USART_BAUDRATE = USART_BAUD_RATE_9600;
-	USART2_HANDLE->USART_OVER_VAL = USART_OVER_8;
-	USART2_HANDLE->USART_WORDLEN = USART_WORD_LEN_8BITS;
-	USART2_HANDLE->USART_PARITY_CTRL = USART_PARITY_DISABLE;
-	USART2_HANDLE->USART_RX_STATUS = USART_STATUS_READY;
-	USART2_HANDLE->USART_TX_STATUS = USART_STATUS_READY;
-	USART2_HANDLE->pUSARTx = USART2;
-
-	USART_INIT(USART2_HANDLE);
+	return GPIO_READ_INPUT_PIN(GPIOC, GPIO_PIN_NUMBER_9);
 }
-/************* PERIPHERAL INITS END HERE ********************/
 
-/************* FreeRTOS Tasks START HERE *******************/
-
-void task1_RX(void *pvParameters)
+// wrapper function for setting pin mode of dht22 pin
+void DIGICLOCK_DHT22_PINMODE(DHT22_PIN_MODE_t PIN_MODE)
 {
-	while(1){
-		if(USART_rx_in_progress == USART_RX_READY_FOR_NEW_STRING){
-			USART_CTRL(USART2, ENABLE);
-			USART_IRQ_CFG(USART2_IRQn, ENABLE);
-			uint8_t mcu_shell[] = "\r\nkatog>";
-			USART_SEND_DATA(USART2, mcu_shell, sizeof(mcu_shell)/sizeof(mcu_shell[0]));
-
-			USART_RECEIVE_DATA_IT(&USART2_HANDLE, &USART_BUFFER, 1);
-			USART_rx_in_progress = USART_RXING_CURR_STRING;
-		}
-		vTaskDelay(50 / portTICK_PERIOD_MS);
+	if(PIN_MODE == DHT22_PIN_MODE_INPUT){
+		DIGICLOCK_DHT22_PIN.GPIO_MODE = GPIO_PIN_MODE_INPUT;
 	}
+	else if(PIN_MODE == DHT22_PIN_MODE_OUTPUT){
+		DIGICLOCK_DHT22_PIN.GPIO_MODE = GPIO_PIN_MODE_OUTPUT;
+	}
+	GPIO_INIT(&DIGICLOCK_DHT22_PIN);
 }
 
-void task2_print(void *pvParameters)
+void DIGICLOCK_DHT22_DELAY_uS(uint32_t delay)
 {
-	while(1){
-		if(USART_rx_in_progress == USART_RX_TO_PROCESS){
-
-			uint8_t *task2_msg_buffer = pvPortMalloc(MSG_LEN * sizeof(USART_BUFFER));
-
-			uint8_t delay_str[] = "DELAY";
-
-
-			
-			if(strncmp((const char*)delay_str, (const char*)task2_msg_buffer, strlen((const char*)delay_str)) == 0){
-				// process and retrieve the value of the delay
-			}
-			vPortFree(task2_msg_buffer);
-			MSG_LEN = 0;
-			USART_rx_in_progress = USART_RX_READY_FOR_NEW_STRING;
-		}
-		vTaskDelay(50/ portTICK_PERIOD_MS);
-	}
+	// using hardware timer for the source of micro second delays since
+	// FreeRTOS doesnt have delay source for micro seconds
+	DELAY_us(delay);
 }
-/************* FreeRTOS Tasks END HERE *******************/
-
-int main()
+// this function handles timeout conditions for the dht22 library
+uint32_t DIGICLOCK_DHT22_GET_TICKS(void)
 {
+	return DELAY_TICK();
+}
+
+/* DHT22 SETUP CODE */
+void DIGILOCK_DHT22_PIN_INITS(GPIO_Handle_t* DHT22_GPIO_HANDLE)
+{
+	DHT22_GPIO_HANDLE->GPIO_MODE 		= GPIO_PIN_MODE_INPUT;
+	DHT22_GPIO_HANDLE->GPIO_PUPPD		= GPIO_NO_PUPD;
+	DHT22_GPIO_HANDLE->GPIO_OUTPUT_TYPE = GPIO_OUT_PP;
+	DHT22_GPIO_HANDLE->GPIO_OUTPUT_SPD	= GPIO_OUT_FST_SPD;
+	DHT22_GPIO_HANDLE->pGPIOx 			= GPIOC;
+	DHT22_GPIO_HANDLE->GPIO_PIN_NUMBER	= GPIO_PIN_NUMBER_9;
+
+	GPIO_INIT(DHT22_GPIO_HANDLE);
+}
+
+/* I2C1 MAIN BUS SETUP CODE */
+void I2C_BUS_PINS_INIT(GPIO_Handle_t* I2C_PIN_HANDLE)
+{
+	I2C_PIN_HANDLE->GPIO_AFIO_MODE 		= AFIO_MODE_5;
+	I2C_PIN_HANDLE->GPIO_MODE 			= GPIO_PIN_MODE_AFIO;
+	I2C_PIN_HANDLE->GPIO_OUTPUT_SPD 	= GPIO_OUT_FST_SPD;
+	I2C_PIN_HANDLE->GPIO_OUTPUT_TYPE 	= GPIO_OUT_OD;
+	I2C_PIN_HANDLE->GPIO_PUPPD			= GPIO_NO_PUPD;
+	I2C_PIN_HANDLE->pGPIOx				= GPIOB;
+	// PB8 SCL
+	I2C_PIN_HANDLE->GPIO_PIN_NUMBER		= GPIO_PIN_NUMBER_8;
+	GPIO_INIT(I2C_PIN_HANDLE);
+
+	// PB9 SDA
+	I2C_PIN_HANDLE->GPIO_PIN_NUMBER		= GPIO_PIN_NUMBER_9;
+	GPIO_INIT(I2C_PIN_HANDLE);
+
+}
+void I2C_BUS_INIT(I2C_Handle_t* I2C_HANDLE){
+	I2C_HANDLE->DEVICE_ADDR 	 = 0x69;
+	I2C_HANDLE->I2C_FM_DUTY_MODE = I2C_FM_DUTY_MODE_2;
+	I2C_HANDLE->I2C_SPD			 = I2C_SPEED_FM;
+	I2C_HANDLE->I2C_STATUS		 = I2C_STATUS_READY;
+
+	I2C_INIT(I2C_HANDLE);
+}
 
 
-#ifdef SEMIHOSTING_ENABLE
-	initialise_monitor_handles();
-	printf("semi hosting enabled\n");
-#endif
+/* SH1106 SETUP CODE */
+// sh1106 wrapper functions
+uint8_t SH1106_I2C_WRITE(uint8_t Slave_Addr, uint8_t* TxBuffer, uint32_t len, uint8_t Rpt_Strt)
+{
+	TimeOut_t xTimeOut;
 
-	USART_PINS_INIT();
-	USART2_INIT(&USART2_HANDLE);
+	TickType_t ticks_to_wait = pdMS_TO_TICKS(300);
 
-	USART_MSG_QUEUE = xQueueCreate(QUEUE_MAX_LEN, sizeof(uint8_t));
-	if(USART_MSG_QUEUE == NULL){
-#ifdef SEMIHOSTING_ENABLE
-		printf("failed to create USART_MSG_QUEUE\n");
-#endif
-		NVIC_SystemReset();
+	while(I2C_MSTR_SEND_DATA_IT(&DIGICLOCK_I2C1_BUS_HANDLE, Slave_Addr, TxBuffer, len, Rpt_Strt) == I2C_BUSY){
+		if(xTaskCheckForTimeOut(&xTimeOut, &ticks_to_wait) == pdTRUE){
+			// timeout happened
+			// call application callback in main side
+			return 0;
+		}
+		vTaskDelay(5); // 5 ticks to give way to other tasks while checking timeout occurence
 	}
-	if(xTaskCreate(task1_RX, "task1_RX", 2048, NULL, 2, &task1_handle) == errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY){
-#ifdef SEMIHOSTING_ENABLE
-		printf("failed to create task1_RX\n");
-#endif
+	return 1;
+}
+
+/* DS1307 SETUP CODE */
+// ds1307 wrapper functions
+uint8_t DS1307_I2C_TRANSMIT(uint8_t Slave_Addr, uint8_t reg_addr, uint8_t value)
+{
+	TimeOut_t xTimeOut;
+	TickType_t ticks_to_wait = pdMS_TO_TICKS(300);
+
+	uint8_t temp_tx_buffer[2];
+	temp_tx_buffer[0] = reg_addr;
+	temp_tx_buffer[1] = value;
+	vTaskSetTimeOutState(&xTimeOut);
+	while(I2C_MSTR_SEND_DATA_IT(&DIGICLOCK_I2C1_BUS_HANDLE, Slave_Addr, temp_tx_buffer, 2, DISABLE) == I2C_BUSY){
+		if(xTaskCheckForTimeOut(&xTimeOut, &ticks_to_wait) == pdTRUE){
+			// timeout happened
+			// call application callback in main side
+			return 0;
+		}
+		vTaskDelay(5);
 	}
+	return 1;
+}
 
-	if(xTaskCreate(task2_print, "task2_print", 2048, NULL, 3, &task2_handle) == errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY){
-#ifdef SEMIHOSTING_ENABLE
-		printf("failed to create task2_print\n");
-#endif
+uint8_t DS1307_I2C_RECEIVE(uint8_t Slave_Addr, uint8_t reg_addr, uint8_t* RxBuffer)
+{
+	TimeOut_t xTimeOut;
+	TickType_t ticks_to_wait = pdMS_TO_TICKS(300);
+	vTaskSetTimeOutState(&xTimeOut);
+	while(I2C_MSTR_SEND_DATA_IT(&DIGICLOCK_I2C1_BUS_HANDLE, Slave_Addr, &reg_addr, 1, ENABLE) == I2C_BUSY){
+		if(xTaskCheckForTimeOut(&xTimeOut, &ticks_to_wait) == pdTRUE){
+			// timeout happened
+			// call application callback in main side
+			return 0;
+		}
+		vTaskDelay(5);
 	}
+	vTaskSetTimeOutState(&xTimeOut);
+	while(I2C_MSTR_RECEIVE_DATA_IT(&DIGICLOCK_I2C1_BUS_HANDLE, Slave_Addr, RxBuffer, 1, DISABLE) == I2C_BUSY){
+		if(xTaskCheckForTimeOut(&xTimeOut, &ticks_to_wait) == pdTRUE){
+			// timeout happened
+			// call application callback in main side
+			return 0;
+		}
+	}
+	return 1;
+}
+/* GPIO BUTTON SETUP CODE */
+void GPIO_BUTTONS_INIT()
+{
+	GPIO_Handle_t GPIO_BUTTONS;
+	GPIO_BUTTONS.GPIO_MODE		 = GPIO_PIN_MODE_INPUT;
+	GPIO_BUTTONS.GPIO_PUPPD 	 = GPIO_NO_PUPD;
+	GPIO_BUTTONS.GPIO_PIN_NUMBER = GPIO_PIN_NUMBER_11;
+	GPIO_INIT(&GPIO_BUTTONS);
+
+	GPIO_BUTTONS.GPIO_PIN_NUMBER = GPIO_PIN_NUMBER_12;
+	GPIO_INIT(&GPIO_BUTTONS);
 
 
 
 
+}
+int main(){
 
-	vTaskStartScheduler();
-	for(;;);
+	DIGICLOCK_DHT22_WRAPPER.DHT22_DELAY_us 	= 	DIGICLOCK_DHT22_DELAY_uS;
+	DIGICLOCK_DHT22_WRAPPER.DHT22_PINMODE 	= 	DIGICLOCK_DHT22_PINMODE;
+	DIGICLOCK_DHT22_WRAPPER.DHT22_PIN_READ 	= 	DIGICLOCK_DHT22_READ;
+	DIGICLOCK_DHT22_WRAPPER.DHT22_PIN_WRITE =	DIGICLOCK_DHT22_WRITE;
+	DIGICLOCK_DHT22_WRAPPER.get_ticks		=	DIGICLOCK_DHT22_GET_TICKS;
+
+	DELAY_INIT();
+	DIGILOCK_DHT22_PIN_INITS(&DIGICLOCK_DHT22_PIN);
+	I2C_BUS_PINS_INIT(&DIGICLOCK_I2C1_BUS_PINS);
+	I2C_BUS_INIT(&DIGICLOCK_I2C1_BUS_HANDLE);
+
+	DHT22_INIT(&DIGICLOCK_DHT22_HANDLE, &DIGICLOCK_DHT22_WRAPPER);
+	SH1106_Init(&DIGICLOCK_SH1106_HANDLE, &DIGICLOCK_SH1106_WRAPPER);
 
 }
 
-void USART2_IRQHandler(void){
-	USART_IRQ_HANDLE(&USART2_HANDLE);
-}
-
-void USART_APPEV_CLLBCK(USART_APPEV_CLLBCK_t APP_EV){
-	if(APP_EV == USART_RX_SUCCESS){
-
-		if(MSG_LEN < QUEUE_MAX_LEN && USART_BUFFER != '\r'){
-			MSG_LEN++;
-			xQueueSendFromISR(USART_MSG_QUEUE, &USART_BUFFER, &xHigherPriorityTaskWoken);
-			USART_SEND_DATA_IT(&USART2_HANDLE, &USART_BUFFER, 1);
-		}
-		else {
-			uint8_t carriage_ch[] = "\r\n";
-			USART_SEND_DATA_IT(&USART2_HANDLE, carriage_ch, 2);
-			USART_BUFFER = '\0';
-			MSG_LEN++;
-			xQueueSendFromISR(USART_MSG_QUEUE, &USART_BUFFER, &xHigherPriorityTaskWoken);
-		}
-	}
-	if(APP_EV == USART_TX_SUCCESS){
-		if(USART_BUFFER == '\r'){
-			USART_CTRL(USART2, DISABLE);
-			USART_IRQ_CFG(USART2_IRQn, DISABLE);
-			USART_rx_in_progress = USART_RX_TO_PROCESS;
-
-			if(xHigherPriorityTaskWoken == pdTRUE){
-				portYIELD_FROM_ISR(xHigherPriorityTaskWoken); // yield to task 2 since it manages data processing
-			}
-		}
-		else {
-			USART_RECEIVE_DATA_IT(&USART2_HANDLE, &USART_BUFFER, 1);
-		}
-	}
-}
-
-void SysTick_Handler(void) {
-    xPortSysTickHandler();  // FreeRTOS tick handler
-}
-
+void I2C1_

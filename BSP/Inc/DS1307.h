@@ -30,10 +30,10 @@ typedef enum {
 }HOUR_FORMAT_t;
 
 
-typedef struct {
+/*typedef struct {
 	uint8_t	(*I2C_TRANSMIT)(uint8_t Slave_Addr, uint8_t reg_addr, uint8_t value);
 	uint8_t (*I2C_RECEIVE)(uint8_t Slave_Addr, uint8_t reg_addr, uint8_t* RxBuffer);
-}DS1307_I2C_COMMS_t;
+}DS1307_I2C_COMMS_t;*/
 
 typedef struct {
  uint8_t SECONDS;
@@ -54,13 +54,15 @@ typedef struct {
 
 typedef struct {
 
-	DS1307_I2C_COMMS_t DS1307_COMMS_HANDLE;
+	/*DS1307_I2C_COMMS_t DS1307_COMMS_HANDLE;*/
+	uint8_t	(*I2C_TRANSMIT)(uint8_t Slave_Addr, uint8_t reg_addr, uint8_t value);
+	uint8_t (*I2C_RECEIVE)(uint8_t Slave_Addr, uint8_t reg_addr, uint8_t* RxBuffer);
 	DS1307_DATE_t DS1307_DATE_HANDLE;
 	DS1307_TIME_t DS1307_TIME_HANDLE;
 
 }DS1307_Handle_t;
 
-
+uint8_t DS137_INIT(DS1307_Handle_t* DS1307_HANDLE, uint8_t SlaveAddr);
 uint8_t DS1307_SET_TIME(DS1307_Handle_t* DS1307_HANDLE, uint8_t Slave_Addr);
 uint8_t DS1307_SET_DATE(DS1307_Handle_t* DS1307_HANDLE, uint8_t Slave_Addr);
 uint8_t DS1307_GET_TIME(DS1307_Handle_t* DS1307_HANDLE, uint8_t Slave_Addr);

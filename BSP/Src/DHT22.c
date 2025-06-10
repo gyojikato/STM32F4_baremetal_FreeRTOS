@@ -22,6 +22,11 @@ typedef enum {
 }DHT22_STATUS_t;
 
 /* HELPER FUNCTIONS START HERE */
+
+/**
+ * @brief
+ * @param
+ */
 static void DHT22_DELAY_ms(DHT22_FUNC_t* DHT22_FUNC, uint32_t delay)
 {
 	while(delay--){
@@ -29,6 +34,10 @@ static void DHT22_DELAY_ms(DHT22_FUNC_t* DHT22_FUNC, uint32_t delay)
 	}
 }
 
+/**
+ * @brief
+ * @param
+ */
 static DHT22_STATUS_t dht22_gen_start(DHT22_FUNC_t* DHT22_FUNC)
 {
 	DHT22_FUNC->DHT22_PINMODE(DHT22_PIN_MODE_OUTPUT);
@@ -53,7 +62,10 @@ static DHT22_STATUS_t dht22_gen_start(DHT22_FUNC_t* DHT22_FUNC)
 	return DHT22_OK;
 }
 
-
+/**
+ * @brief
+ * @param
+ */
 static DHT22_STATUS_t dht22_get_response(DHT22_FUNC_t* DHT22_FUNC)
 {
 	// check for the 70us LOW ~ HIGH response signal from sensor
@@ -75,6 +87,10 @@ static DHT22_STATUS_t dht22_get_response(DHT22_FUNC_t* DHT22_FUNC)
 	return DHT22_OK;
 }
 
+/**
+ * @brief
+ * @param
+ */
 static DHT22_STATUS_t dht22_get_data(uint8_t* data_buf, DHT22_FUNC_t* DHT22_FUNC)
 {
 	for(uint8_t idx = 0; idx < 5; idx++){
@@ -110,6 +126,10 @@ static DHT22_STATUS_t dht22_get_data(uint8_t* data_buf, DHT22_FUNC_t* DHT22_FUNC
 	return DHT22_OK;
 }
 
+/**
+ * @brief
+ * @param
+ */
 static uint8_t dht22_checksum(uint8_t* data_buf, DHT22_Handle_t* DHT22_HANDLE)
 {
 	// store the total sum of humidity and temperature values to temporary checksum
@@ -134,11 +154,22 @@ static uint8_t dht22_checksum(uint8_t* data_buf, DHT22_Handle_t* DHT22_HANDLE)
 	return DHT22_OK;
 }
 /* HELPER FUNCTIONS END HERE */
+
+/* MAIN FUNCTIONS START HERE */
+
+/**
+ * @brief
+ * @param
+ */
 void DHT22_INIT(DHT22_Handle_t* DHT22_HANDLE, DHT22_FUNC_t *DHT22_WRAPPER_FUNCS)
 {
 	DHT22_HANDLE->DHT22_FUNC = *DHT22_WRAPPER_FUNCS;
 }
 
+/**
+ * @brief
+ * @param
+ */
 uint8_t DHT22_GET_TEMP_HUM(DHT22_Handle_t* DHT22_HANDLE)
 {
 	uint8_t data_buf[5] = {0, 0, 0, 0, 0};
@@ -163,3 +194,4 @@ uint8_t DHT22_GET_TEMP_HUM(DHT22_Handle_t* DHT22_HANDLE)
 	return 1;
 }
 
+/* MAIN FUNCTIONS END HERE */

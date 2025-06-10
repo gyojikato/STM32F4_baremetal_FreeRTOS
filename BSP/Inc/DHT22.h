@@ -20,8 +20,11 @@ typedef struct {
 	void (*DHT22_PIN_WRITE)(uint8_t VALUE);
 	uint8_t (*DHT22_PIN_READ)(void);
 	void (*DHT22_PINMODE)(DHT22_PIN_MODE_t PIN_MODE); // PIN_MODE to be OUTPUT or INPUT
-	void (*DHT22_DELAY_us)(uint32_t delay);
+
+	void (*DHT22_DELAY_us)(uint32_t delay); //function which is responsible for delays inside the dht22 library
+
 	uint32_t (*get_ticks)(void); // ticks should be updated on a micro-second basis
+								 // get_ticks function handles the timeout functionality of dht22 library
 
 }DHT22_FUNC_t;
 
@@ -31,11 +34,16 @@ typedef struct {
 	float humidity;
 }DHT22_Handle_t;
 
-// brief
+/**
+ * @brief
+ * @param
+ */
 void DHT22_INIT(DHT22_Handle_t* DHT22_HANDLE, DHT22_FUNC_t *DHT22_WRAPPER_FUNCS);
 
-
-// brief
+/**
+ * @brief
+ * @param
+ */
 uint8_t DHT22_GET_TEMP_HUM(DHT22_Handle_t* DHT22_HANDLE);
 
 #endif /* INC_DHT22_H_ */

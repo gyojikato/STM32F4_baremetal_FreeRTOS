@@ -17,10 +17,10 @@
  */
 static ErrorStatus SPI_WAIT_FLG_STATUS(SPI_TypeDef* pSPIx, uint32_t FLG)
 {
-	uint32_t prev_tick = GET_CURR_TICK();
+	uint32_t prev_tick = DELAY_TICK();
 	while(!(pSPIx->SR & FLG)){
 
-		if((GET_CURR_TICK() - prev_tick) > SPI_MAX_TIMEOUT){
+		if((DELAY_TICK() - prev_tick) > SPI_MAX_TIMEOUT){
 			return ERROR;
 		}
 	}

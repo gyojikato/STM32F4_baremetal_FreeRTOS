@@ -8,13 +8,23 @@
 #include "stm32f44xx_timer.h"
 
 #define TIM_CLK_FREQ			(1000000)
+#define TIMER_TIMEOUT			(16000) // 1 ms timeout value assuming 16Mhz system clock
+
+
+/* General purpose TIMER6 is reserved only to be used for DELAY functionalities
+ * The following must be set at all times
+ * Prescaler value : 16 - 1 1Mhz Clock frequency
+ * Auto Reload Register value : to achieve micro second clock ticks, in accordance to 1Mhz Clock frequency
+ * Control Register : default value
+ *
+ * */
 
 /**
  * @brief Function to initialize delays
  * @param
  * @caveat: TIMER6 is reserved to set as the main source of delay function
  */
-void DELAY_INIT()
+uint8_t DELAY_INIT()
 {
 	// enable tim6 peripheral clock
 	RCC->APB1ENR |= RCC_APB1ENR_TIM6EN_Msk;
@@ -29,33 +39,36 @@ void DELAY_INIT()
 	TIM6->EGR |= (TIM_EGR_UG_Msk);
 
 	// wait to confirm the update of registers
-	while(TIM6->SR & TIM_SR_UIF_Msk);
-
+	uint32_t temp_cnt = 0;
+	while(TIM6->SR & TIM_SR_UIF_Msk){
+		if(temp_cnt > TIMER_TIMEOUT) return 0; // possible to lock up
+	}
 	// enable count for timer
 	TIM6->CR1 |= (TIM_CR1_CEN_Msk);
+	return 1;
 }
 
-void TIMER_uS_delay(uint32_t delay)
+void DELAY_us(uint32_t delay)
 {
 	TIM6->CNT = 0;
 	while(TIM6->CNT < delay);
 }
 
-void TIMER_mS_DELAY(uint32_t delay)
+void DELAY_ms(uint32_t delay)
 {
-	while(delay--){
+	while(delay-=1){
 		TIMER_uS_delay(1000);
 	}
 }
 
-uint32_t GET_CURR_TICK()
+uint32_t DELAY_TICK(void)
 {
 	return TIM6->CNT;
 }
+/* Since PWM functions are also under TIMER peripherals,
+ * PWM functionalities are also included in TIMER driver */
 
-
-// PWM FUNCTIONS
-
+/* ALL PWM RELATED STARTS HERE */
 /**
  * @brief Function to initialize PWM output
  * @param
@@ -137,3 +150,5 @@ void PWM_SET_DC_FQ(TIM_TypeDef* pTIMx, PWM_CH_SEL_t CH, uint8_t DUTY_CYCLE, uint
 
 	pTIMx->CNT = 0;
 }
+
+/* ALL PWM RELATED ENDS HERE */

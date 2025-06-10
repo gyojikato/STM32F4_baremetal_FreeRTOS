@@ -37,10 +37,10 @@ typedef struct {
 
 }PWM_Handle_t;
 
-void DELAY_INIT();
-void TIMER_uS_delay(uint32_t delay);
-void TIMER_mS_DELAY(uint32_t delay);
-uint32_t GET_CURR_TICK();
+uint8_t DELAY_INIT();
+void DELAY_us(uint32_t delay);
+void DELAY_ms(uint32_t delay);
+uint32_t DELAY_TICK(void);
 
 /**
  * @brief Function to enable or disable a PWM channel
