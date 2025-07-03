@@ -51,7 +51,7 @@ typedef struct {
 	uint8_t current_x;
 	uint8_t current_y;
 	SH1106_Color_t color_fill;
-	SH1106_Comms_t SH1106_COMMS;
+	SH1106_Comms_t* SH1106_COMMS;
 }SH1106_Handle_t;
 
 uint8_t SH1106_Init(SH1106_Handle_t* SH1106_HANDLE, SH1106_Comms_t* SH1106_COMMS_HANDLE);
