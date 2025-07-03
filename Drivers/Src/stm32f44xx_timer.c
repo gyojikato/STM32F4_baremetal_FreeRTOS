@@ -40,8 +40,8 @@ uint8_t DELAY_INIT()
 
 	// wait to confirm the update of registers
 	uint32_t temp_cnt = 0;
-	while(TIM6->SR & TIM_SR_UIF_Msk){
-		if(temp_cnt > TIMER_TIMEOUT) return 0; // possible to lock up
+	while(!(TIM6->SR & TIM_SR_UIF_Msk)){
+		if(temp_cnt++ > TIMER_TIMEOUT) return 0; // possible to lock up
 	}
 	// enable count for timer
 	TIM6->CR1 |= (TIM_CR1_CEN_Msk);
@@ -57,7 +57,7 @@ void DELAY_us(uint32_t delay)
 void DELAY_ms(uint32_t delay)
 {
 	while(delay-=1){
-		TIMER_uS_delay(1000);
+		DELAY_us(1000);
 	}
 }
 
