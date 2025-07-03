@@ -8,7 +8,7 @@
 
 #include "stm32f44xx_i2c.h"
 
-#define I2C_MAX_TIMEOUT			(10000000)
+#define I2C_MAX_TIMEOUT			(0xFFFFF000)
 #define I2C_WRITE				(0)
 #define I2C_READ				(1)
 
@@ -18,9 +18,9 @@
 // static functions start here
 static I2C_ERROR_STATUS_t I2C_WAIT_STATUS_SR1(I2C_TypeDef* pI2Cx, uint32_t FLG)
 {
-	uint32_t prev_tick = GET_CURR_TICK();
+	uint32_t prev_tick = DELAY_TICK();
 	while(!(pI2Cx->SR1 & FLG)){
-		if((GET_CURR_TICK() - prev_tick) > I2C_MAX_TIMEOUT){
+		if(DELAY_TICK() - prev_tick  > I2C_MAX_TIMEOUT){
 			return I2C_ERROR_TIMEOUT;
 		}
 	}
